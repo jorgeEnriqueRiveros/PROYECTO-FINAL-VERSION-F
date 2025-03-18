@@ -176,8 +176,7 @@ if __name__ == "_main_":
         elif opcion == "5":
             correo = input("Correo del Cliente: ")
             Consultas.ver_compras_cliente(correo)
-        elif opcion == "6":
-            Consultas.ver_todas_las_compras()    
+        elif opcion == "6":    
         elif opcion == "7":
             Consultas.productos_mas_vendidos()
         elif opcion == "8":
