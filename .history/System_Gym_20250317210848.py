@@ -15,7 +15,7 @@ class Conexion:
                 pool_size=5,
                 host="localhost",
                 user="root",
-                password="123456",
+                password="tu_contraseña",
                 database="gym_db"
             )
         return cls._pool.get_connection()
