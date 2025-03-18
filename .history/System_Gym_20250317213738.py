@@ -15,18 +15,34 @@ class Conexion:
                 pool_size=5,
                 host="localhost",
                 user="root",
-                password="admin",
+                password="123456",
                 database="gym_db"
             )
         return cls._pool.get_connection()
 
 # Clase abstracta Persona
 class Persona(ABC):
-    def _init_(self, nombre, apellido, telefono, correo):
+    def __init__(self, nombre, apellido, telefono, correo):
         self._nombre = nombre
         self._apellido = apellido
         self._telefono = telefono
         self._correo = correo
+    
+    @property
+    def nombre(self):
+        return self._nombre
+    
+    @property
+    def apellido(self):
+        return self._apellido
+    
+    @property
+    def telefono(self):
+        return self._telefono
+    
+    @property
+    def correo(self):
+        return self._correo
     
     @abstractmethod
     def guardar(self):
@@ -34,16 +50,25 @@ class Persona(ABC):
 
 # Clase Cliente
 class Cliente(Persona):
-    def _init_(self, nombre, apellido, telefono, correo, membresia, id_cliente=None):
-        super()._init_(nombre, apellido, telefono, correo)
+    def __init__(self, nombre, apellido, telefono, correo, membresia, id_cliente=None):
+        super().__init__(nombre, apellido, telefono, correo)
         self._id_cliente = id_cliente
         self._membresia = membresia
+    
+    @property
+    def id_cliente(self):
+        return self._id_cliente
+    
+    @property
+    def membresia(self):
+        return self._membresia
     
     def guardar(self):
         conexion = Conexion.obtener_conexion()
         with conexion.cursor() as cursor:
             sql = "INSERT INTO clientes (nombre, apellido, telefono, correo, membresia) VALUES (%s, %s, %s, %s, %s)"
-            cursor.execute(sql, (self._nombre, self._apellido, self._telefono, self._correo, self._membresia))
+            valores = (self._nombre, self._apellido, self._telefono, self._correo, self._membresia)
+            cursor.execute(sql, valores)
             conexion.commit()
         conexion.close()
     
@@ -54,13 +79,25 @@ class Cliente(Persona):
             sql = "SELECT * FROM clientes WHERE correo = %s"
             cursor.execute(sql, (correo,))
             return cursor.fetchone()
-        conexion.close()
 
 # Clase Producto
 class Producto:
-    def _init_(self, nombre_prodto, precio_unid):
+    def __init__(self, nombre_prodto, precio_unid, id_producto=None):
+        self._id_producto = id_producto
         self._nombre_prodto = nombre_prodto
         self._precio_unid = precio_unid
+    
+    @property
+    def id_producto(self):
+        return self._id_producto
+    
+    @property
+    def nombre_prodto(self):
+        return self._nombre_prodto
+    
+    @property
+    def precio_unid(self):
+        return self._precio_unid
     
     def guardar_producto(self):
         conexion = Conexion.obtener_conexion()
@@ -72,27 +109,32 @@ class Producto:
 
 # Clase Comprar
 class Comprar:
-    def _init_(self, correo):
+    def __init__(self, correo):
+        self.id_compra = None
         self.id_cliente = self.obtener_id_cliente(correo)
-        self.total_pagado = 0
+        self.fecha_compra = None
+        self.total_pagado = None
+        self.forma_pago = None
         self.carrito_compras = []
     
     def obtener_id_cliente(self, correo):
         cliente = Cliente.obtener_cliente(correo)
         return cliente["id_cliente"] if cliente else None
     
-    def agregar_producto(self, id_producto, cantidad):
+    def obtener_precio_unid(self, id_producto):
         conexion = Conexion.obtener_conexion()
         with conexion.cursor() as cursor:
             sql = "SELECT precio_unid FROM productos WHERE id_producto = %s"
             cursor.execute(sql, (id_producto,))
             resultado = cursor.fetchone()
         conexion.close()
-        
-        if resultado:
-            precio_unid = resultado[0]
+        return resultado[0] if resultado else None
+    
+    def agregar_producto(self, id_producto, cantidad):
+        precio_unid = self.obtener_precio_unid(id_producto)
+        if precio_unid:
             self.carrito_compras.append((id_producto, cantidad, precio_unid))
-            self.total_pagado += cantidad * precio_unid
+            self.total_pagado = (self.total_pagado or 0) + cantidad * precio_unid
         else:
             print("Producto no encontrado.")
     
@@ -100,15 +142,15 @@ class Comprar:
         if not self.id_cliente:
             print("Cliente no encontrado.")
             return
-        
+        self.forma_pago = forma_pago
         conexion = Conexion.obtener_conexion()
         with conexion.cursor() as cursor:
             sql = "INSERT INTO compras (id_cliente, fecha_compra, total_pagado, forma_pago) VALUES (%s, %s, %s, %s)"
-            cursor.execute(sql, (self.id_cliente, date.today(), self.total_pagado, forma_pago))
-            id_compra = cursor.lastrowid
+            cursor.execute(sql, (self.id_cliente, date.today(), self.total_pagado, self.forma_pago))
+            self.id_compra = cursor.lastrowid
             for producto in self.carrito_compras:
                 sql_detalle = "INSERT INTO detalles_compra (id_compra, id_producto, cantidad, precio_final) VALUES (%s, %s, %s, %s)"
-                cursor.execute(sql_detalle, (id_compra, *producto))
+                cursor.execute(sql_detalle, (self.id_compra, *producto))
             conexion.commit()
         conexion.close()
 
@@ -135,7 +177,7 @@ class Consultas:
         conexion.close()
 
 # Menú principal
-if __name__ == "_main_":
+if __name__ == "__main__":
     while True:
         print("\n--- GESTIÓN GYM ---")
         print("1. Registrar Cliente")
@@ -143,7 +185,7 @@ if __name__ == "_main_":
         print("3. Comprar")
         print("4. Ver información del Cliente")
         print("5. Ver compras del Cliente")
-        print("6. Ver todas las compras")
+        print("6. Modificar Cliente")
         print("7. Productos más Vendidos")
         print("8. Salir")
         opcion = input("Seleccione una opción: ")
@@ -153,33 +195,50 @@ if __name__ == "_main_":
             apellido = input("Apellido: ")
             telefono = input("Teléfono: ")
             correo = input("Correo: ")
-            membresia = input("Membresía: ")
-            Cliente(nombre, apellido, telefono, correo, membresia).guardar()
+            membresia = input("Tipo de membresía: ")
+            nuevo_cliente = Cliente(nombre, apellido, telefono, correo, membresia)
+            nuevo_cliente.guardar()
+            print("Cliente registrado con éxito.")
         elif opcion == "2":
-            nombre_prodto = input("Nombre del Producto: ")
-            precio_unid = float(input("Precio: "))
-            Producto(nombre_prodto, precio_unid).guardar_producto()
+            nombre_prodto = input("Nombre del producto: ")
+            precio_unid = float(input("Precio por unidad: "))
+            nuevo_producto = Producto(nombre_prodto, precio_unid)
+            nuevo_producto.guardar_producto()
+            print("Producto registrado con éxito.")
         elif opcion == "3":
-            correo = input("Correo del Cliente: ")
-            compra = Comprar(correo)
-            while True:
-                id_producto = input("ID Producto: ")
-                cantidad = int(input("Cantidad: "))
-                compra.agregar_producto(id_producto, cantidad)
-                if input("¿Agregar otro producto? (s/n): ") != "s":
-                    break
-            forma_pago = input("Forma de Pago: ")
-            compra.guardar_compra(forma_pago)
+            correo = input("Correo del cliente: ")
+            cliente = Cliente.obtener_cliente(correo)
+            if cliente:
+                compra = Compra(cliente['id_cliente'])
+                while True:
+                    id_producto = input("ID del producto (0 para finalizar): ")
+                    if id_producto == "0":
+                        break
+                    cantidad = int(input("Cantidad: "))
+                    compra.agregar_producto(id_producto, cantidad)
+                forma_pago = input("Forma de pago: ")
+                compra.finalizar_compra(forma_pago)
+                print("Compra realizada con éxito.")
+            else:
+                print("Cliente no encontrado.")    
         elif opcion == "4":
-            correo = input("Correo del Cliente: ")
-            print(Cliente.obtener_cliente(correo))
+            correo = input("Ingrese el correo del cliente: ")
+            cliente = Cliente.obtener_cliente(correo)
+            print(cliente if cliente else "Cliente no encontrado.")
         elif opcion == "5":
-            correo = input("Correo del Cliente: ")
-            Consultas.ver_compras_cliente(correo)
+            print("Opción aún no implementada.")
+        elif opcion == "6":
+            correo = input("Correo del cliente a modificar: ")
+            telefono = input("Nuevo teléfono: ")
+            membresia = input("Nueva membresía: ")
+            Cliente.modificar_cliente(correo, telefono, membresia)
+            print("Cliente modificado con éxito.")
         elif opcion == "7":
-            Consultas.productos_mas_vendidos()
+            productos = Producto.productos_mas_vendidos()
+            for producto in productos:
+                print(f"{producto[0]} - Vendidos: {producto[1]}")
         elif opcion == "8":
             print("Saliendo...")
             break
         else:
-            print("Opción inválida.")
+            print("Opción no válida. Intente de nuevo.")

@@ -135,7 +135,7 @@ class Consultas:
         conexion.close()
 
 # Menú principal
-if __name__ == "_main_":
+if _name_ == "_main_":
     while True:
         print("\n--- GESTIÓN GYM ---")
         print("1. Registrar Cliente")
